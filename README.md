@@ -14,9 +14,6 @@ Status: **0.1.0-beta**, the first public release. Requires X-Ways Forensics
 19.5 or later (the release that introduced the Image I/O API); built and
 verified against X-Ways Forensics 21.8 on Windows 11 x64.
 
-Versioning: the whole `0.x` series is beta and carries the `-beta` suffix;
-`1.0.0` will be the first API-stable release.
-
 ## What it reads
 
 | Container / variant (`hdiutil` format) | Chunk type | Supported |
