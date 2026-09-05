@@ -1,0 +1,29 @@
+# NOTICE — third-party components and trademarks
+
+xways-imageio-dmg (ImageIO_DMG.dll) is MIT licensed (see LICENSE). It vendors
+the following third-party decompression sources under `vendor/`, used
+unmodified; each component retains its own license (headers and LICENSE files
+preserved alongside the sources):
+
+| Component | Files | Author / origin | License |
+| --- | --- | --- | --- |
+| miniz (tinfl inflate) | `vendor/miniz/miniz.c`, `miniz.h` | Rich Geldreich, RAD Game Tools / Valve — https://github.com/richgel999/miniz | MIT |
+| xz-embedded | `vendor/xz-embedded/*` | Lasse Collin and contributors — https://tukaani.org/xz/embedded.html | 0BSD |
+| bzip2 / libbzip2 1.0.8 | `vendor/bzip2/*` | Julian R Seward — https://sourceware.org/bzip2/ | bzip2 license (BSD-style) |
+| LZFSE (decoder subset) | `vendor/lzfse/*` | Apple Inc. — https://github.com/lzfse/lzfse | BSD-3-Clause |
+
+Design references (no code copied): QEMU `block/dmg.c` / `dmg-bz2.c` /
+`dmg-lzfse.c` (MIT, Copyright (c) 2004 Johannes E. Schindelin and
+contributors) for the UDIF random-access model and the resource-fork block
+map walk; "DeMystifyinG the DMG file format" (newosxbook.com) for the koly /
+mish layouts; the libyal `libmodi` format documentation for the sparse-image
+and sparse-bundle layouts; nlitsme/encrypteddmg (MIT) for the encrypted-image
+header layout.
+
+Test images referenced in the docs are public or self-generated; no evidence
+data is included in this repository.
+
+"X-Ways", "X-Ways Forensics", and "WinHex" are trademarks of X-Ways Software
+Technology AG. "Apple", "macOS", and "hdiutil" are trademarks of Apple Inc.
+This is an unofficial community project, not affiliated with, endorsed by, or
+supported by X-Ways Software Technology AG or Apple Inc.

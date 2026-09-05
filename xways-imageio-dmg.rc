@@ -1,0 +1,52 @@
+#include <windows.h>
+#include "resource.h"
+
+// Password prompt for encrypted DMGs. Parented to the X-Ways main window,
+// shown from IIO_Init (X-Ways' own thread) — modal, no worker threads.
+IDD_PASSWORD DIALOGEX 0, 0, 360, 122
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Encrypted DMG - ImageIO_DMG"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "Image:", -1, 7, 8, 30, 9
+    LTEXT           "", IDC_PW_FILE, 40, 8, 313, 9, SS_PATHELLIPSIS
+    LTEXT           "", IDC_PW_DETAIL, 40, 19, 313, 9
+    LTEXT           "Password:", -1, 7, 38, 40, 9
+    EDITTEXT        IDC_PW_EDIT, 52, 36, 301, 13, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "&Show password", IDC_PW_SHOW, 52, 53, 80, 10
+    AUTOCHECKBOX    "&Remember this password (encrypted for your Windows account, next to the plugin)", IDC_PW_REMEMBER, 52, 66, 301, 10
+    LTEXT           "", IDC_PW_STATUS, 7, 84, 346, 9
+    DEFPUSHBUTTON   "Unlock", IDOK, 246, 101, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 300, 101, 50, 14
+END
+
+// PE VERSIONINFO so the DLL self-identifies. Keep FILEVERSION / FileVersion in
+// lockstep with the VERSION constant in xways-imageio-dmg.cpp. ASCII only.
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,0
+ PRODUCTVERSION 0,1,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS VS_FF_PRERELEASE
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "Kevin Stokes (kev365)"
+            VALUE "FileDescription",  "ImageIO_DMG - Apple DMG (UDIF) Image I/O plugin for X-Ways Forensics"
+            VALUE "FileVersion",      "0.1.0-beta"
+            VALUE "InternalName",     "ImageIO_DMG"
+            VALUE "LegalCopyright",   "Copyright (c) 2026 Kevin Stokes. MIT License."
+            VALUE "OriginalFilename", "ImageIO_DMG.dll"
+            VALUE "ProductName",      "xways-imageio-dmg"
+            VALUE "ProductVersion",   "0.1.0-beta"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

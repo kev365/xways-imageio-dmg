@@ -1,0 +1,11 @@
+; xways-imageio-dmg — Image I/O API plugin (separate from the X-Tension API).
+;
+; X-Ways requires undecorated export names: IIO_Init / IIO_Work / IIO_Done.
+; The DLL name must match the Image*.dll mask X-Ways scans for.
+
+LIBRARY ImageIO_DMG
+
+EXPORTS
+    IIO_Init
+    IIO_Work
+    IIO_Done

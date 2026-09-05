@@ -1,0 +1,35 @@
+# Build output
+*.obj
+*.dll
+*.exp
+*.lib
+*.pdb
+*.res
+harness/*.exe
+harness/*.obj
+
+# Local build configuration
+.deploy.local
+
+# Runtime files written next to the deployed DLL
+*-passwords.cfg
+*-log.tsv
+ImageIO_DMG-reports/
+
+# Local working documents
+ROADMAP.md
+CLAUDE.md
+CLAUDE.md.example
+xways-imageio-dmg-testdata.md
+
+# Test images and fuzzer output
+dmg-samples/
+fuzz-crashes/
+
+# Development tooling; the corpus generators are tracked
+tools/*
+!tools/make_test_dmg*
+
+# Python bytecode
+__pycache__/
+*.pyc
