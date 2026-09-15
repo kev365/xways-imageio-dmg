@@ -11,8 +11,8 @@ It is the same mechanism the Evimetry AFF4 reader (`ImageIOAFF4.dll`) uses —
 an `Image*.dll` in the `x64\` folder, not an X-Tension.
 
 Status: **0.1.0-beta**, the first public release. Requires X-Ways Forensics
-19.5 or later (the release that introduced the Image I/O API); built and
-verified against X-Ways Forensics 21.8 on Windows 11 x64.
+19.5 or later (the release that introduced the Image I/O API); tested
+against X-Ways Forensics 21.8 on Windows 11 x64.
 
 ## What it reads
 
@@ -46,7 +46,7 @@ verified against X-Ways Forensics 21.8 on Windows 11 x64.
   first.
 - **`.sparsebundle`** is a *directory*, and X-Ways' Add Image wants a file, so
   add the bundle's **`Info.plist`** (any file inside the bundle works, but
-  `Info.plist` is the stable one). The plugin recognises the enclosing
+  `Info.plist` is the stable one). The plugin recognizes the enclosing
   `.sparsebundle` folder and reads `bands\<hex>`; missing or short band files
   read as zeros. X-Ways names the evidence object after the file you picked
   (`Info`), so rename the evidence object in the case if that matters. In an
@@ -72,7 +72,7 @@ first sectors, the same way it is for encrypted read-write images.
 The evidence file is opened read-only and is **never written to**. When a
 chunk cannot be decoded (a corrupt compressed stream, a container read error),
 the plugin does not fail the read — X-Ways treats a short read as a silent
-failure and simply carries on with an unrecognised volume, which tells the
+failure and simply carries on with an unrecognized volume, which tells the
 examiner nothing. Instead it **presents that chunk's sectors as zeros**, records
 the substitution, and tells you three ways:
 
@@ -91,7 +91,7 @@ the block map) are named in the evidence object's description as
 `VIRTUAL REPAIR: ...`, so they are persisted in the case file.
 
 A `.dmg` that has lost its trailer (truncated download, incomplete copy) is
-recognised by its compressed-stream header and refused with a message saying
+recognized by its compressed-stream header and refused with a message saying
 so, instead of X-Ways' generic "DMG Images not supported" refusal.
 
 ## Integrity verification
@@ -196,7 +196,7 @@ report file (see *Damaged images* above). Passwords are never logged.
 Two constants at the top of `xways-imageio-dmg.cpp` control the volume:
 `VERBOSE` (**on** — per-image decisions and close-out statistics, cheap) and
 `TRACE_WORK` (**off** — a row per read, useful when investigating read
-behaviour, but it makes the log large and adds a file write per read).
+behavior, but it makes the log large and adds a file write per read).
 
 A decoder failure never takes X-Ways down: `IIO_Work` runs under a structured
 exception guard, and a chunk that cannot be decoded is served as zeros and
@@ -235,7 +235,7 @@ dmgtest decrypt image.dmg out.bin               dump the decrypted plaintext of 
                                                 (all commands take --password <p> for encrypted images)
 ```
 
-Test images are large and carry their own licences, so they are not committed
+Test images are large and carry their own licenses, so they are not committed
 here; `tools/make_test_dmg.py` and `tools/make_test_dmgs_macos.sh` build a
 corpus locally.
 
@@ -305,7 +305,7 @@ LZMA (~27 MiB/s) are the slow decoders.
 - X-Ways names a sparse bundle's evidence object after the file you added
   (`Info`), and the API offers no way to override that.
 - Planned: a wider real-world corpus (other producers, other eras, other file
-  systems inside the image), and the X-Ways read behaviours not yet observed
+  systems inside the image), and the X-Ways read behaviors not yet observed
   (multi-threaded reads under a hashing refinement, `IIO_CHECK_FOR_SPARSE`).
 
 Real-world images for testing are readily available: application DMGs from
@@ -347,7 +347,7 @@ Open an issue with the `dmgtest map` output for the image (it prints the koly
 trailer, the partition list and the chunk-type histogram and contains no file
 content), the plugin's version, and the X-Ways version. If the image is
 damaged, `dmgtest checksums` output helps too. Please do not attach evidence
-images.
+images or other confidential data.
 
 ## License
 
