@@ -23,6 +23,7 @@ REM  Auto-bootstraps the VS x64 toolchain if cl.exe isn't on PATH yet.
 REM ============================================================================
 
 setlocal EnableDelayedExpansion
+cd /d "%~dp0"
 
 REM --- Bootstrap VS x64 toolchain if needed ----------------------------------
 where cl >nul 2>nul && goto :have_toolchain
@@ -58,10 +59,15 @@ set SRC=xways-imageio-dmg
 set OUT=ImageIO_DMG.dll
 set INCS=/I. /Ivendor\miniz /Ivendor\xz-embedded /Ivendor\bzip2 /Ivendor\lzfse
 set VENDORDEFS=/DXZ_USE_CRC64 /DBZ_NO_STDIO /DMINIZ_NO_STDIO /DMINIZ_NO_ARCHIVE_APIS /DMINIZ_NO_TIME /DMINIZ_NO_MALLOC_OVERRIDE
-set CXXFLAGS=/nologo /std:c++17 /W3 /EHsc /O2 /MT /utf-8 /DUNICODE /D_UNICODE %VENDORDEFS% %INCS%
+REM NDEBUG: the vendored decoders assert() on their decode paths (lzfse
+REM especially). Inside X-Ways a failed assert raises the CRT's Abort/Retry/
+REM Ignore box and ends in __fastfail, which the exports' SEH guards cannot
+REM catch. A release build compiles the asserts out.
+set RELDEFS=/DNDEBUG
+set CXXFLAGS=/nologo /std:c++17 /W3 /EHsc /O2 /MT /utf-8 /DUNICODE /D_UNICODE %RELDEFS% %VENDORDEFS% %INCS%
 REM /wd4244 /wd4267 /wd4996: benign narrowing + CRT-deprecation noise in the
 REM vendored decoders (upstream code we don't patch). Our own C++ keeps full /W3.
-set CFLAGS=/nologo /W3 /wd4244 /wd4267 /wd4996 /wd4267 /O2 /MT /utf-8 %VENDORDEFS% %INCS%
+set CFLAGS=/nologo /W3 /wd4244 /wd4267 /wd4996 /wd4267 /O2 /MT /utf-8 %RELDEFS% %VENDORDEFS% %INCS%
 set LDFLAGS=/DLL /DEF:%SRC%.def /OUT:%OUT% /MACHINE:X64
 set LIBS=bcrypt.lib Crypt32.lib User32.lib Gdi32.lib
 

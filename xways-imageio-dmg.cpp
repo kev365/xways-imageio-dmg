@@ -135,17 +135,27 @@ static bool g_persistLoaded = false;
 // covers <sector> misbehave on purpose: "short" (default) returns only the
 // bytes before that sector (0 if it starts there), "zero" serves the sector
 // as zeros. Used to learn how X-Ways reacts to each kind of read failure.
+// IMAGEIO_DMG_FAULT=av-init | av-work | av-done raises an access violation
+// inside that export's guarded body, to prove the SEH guard contains it.
 // Never set in production; nothing here is reachable without the variable.
 static bool     g_faultEnabled = false;
 static uint64_t g_faultSector = 0;
 static bool     g_faultZero = false;
+static int      g_faultAv = 0;   // 1 = IIO_Init, 2 = IIO_Work, 3 = IIO_Done
 
 static void LoadFaultInjection() {
     wchar_t v[64] = {0};
     if (GetEnvironmentVariableW(L"IMAGEIO_DMG_FAULT", v, 63) == 0) return;
+    if (wcsstr(v, L"av-init")) { g_faultAv = 1; return; }
+    if (wcsstr(v, L"av-work")) { g_faultAv = 2; return; }
+    if (wcsstr(v, L"av-done")) { g_faultAv = 3; return; }
     g_faultSector = _wcstoui64(v, nullptr, 10);
     g_faultZero = wcsstr(v, L":zero") != nullptr;
     g_faultEnabled = true;
+}
+
+static void RaiseTestFault() {
+    RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -578,11 +588,12 @@ static PVOID GiveUp(std::unique_ptr<DmgImage> img, ImageInfo* info, const std::s
     return img.release();
 }
 
-extern "C" PVOID __stdcall IIO_Init(HANDLE hMainWnd, LPWSTR lpFilePath, PVOID pHeaderBuf,
-                                    DWORD nHeaderBufSize, ImageInfo* pImgInfo, PVOID pReserved) {
+static PVOID InitImpl(HANDLE hMainWnd, LPWSTR lpFilePath, PVOID pHeaderBuf,
+                      DWORD nHeaderBufSize, ImageInfo* pImgInfo, PVOID pReserved) {
     (void)pReserved;
     const LONG seq = InterlockedIncrement(&g_initSeq);
     if (!lpFilePath || !pImgInfo) return nullptr;
+    if (g_faultAv == 1) RaiseTestFault();
 
     const std::string ext = ExtensionOf(lpFilePath);
     const bool isDmgExt = (ext == "dmg" || ext == "dmgpart" || ext == "udif" || ext == "sparseimage");
@@ -741,6 +752,34 @@ extern "C" PVOID __stdcall IIO_Init(HANDLE hMainWnd, LPWSTR lpFilePath, PVOID pH
     return img.release();
 }
 
+// X-Ways does not contain a plugin fault: an unguarded exception in IIO_Init
+// hung the host for 150 s, one in IIO_Done crashed it (this repo's parent,
+// docs/testing/xways-diagnostics.md). So every export runs its body inside an
+// SEH frame. The guard functions hold only POD locals (C2712); the logging
+// they call does the C++ work. A fault while opening declines the file; the
+// partly built state is leaked, which beats taking the session down.
+static void LogInitException(DWORD code, LPWSTR lpFilePath) {
+    const std::string path = lpFilePath ? dmg::Utf16ToUtf8(lpFilePath) : std::string("(no path)");
+    Log("IIO_Init", 0, dmg::Format("EXCEPTION 0x%08lX contained; file declined | %s", code, path.c_str()));
+    Notify("IIO_Init", 0, dmg::Format("internal error 0x%08lX while opening %s; the file was declined. Please report it with ImageIO_DMG-log.tsv",
+                                      code, path.c_str()));
+}
+
+static PVOID InitGuarded(HANDLE hMainWnd, LPWSTR lpFilePath, PVOID pHeaderBuf,
+                         DWORD nHeaderBufSize, ImageInfo* pImgInfo, PVOID pReserved) {
+    __try {
+        return InitImpl(hMainWnd, lpFilePath, pHeaderBuf, nHeaderBufSize, pImgInfo, pReserved);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LogInitException(GetExceptionCode(), lpFilePath);
+        return nullptr;
+    }
+}
+
+extern "C" PVOID __stdcall IIO_Init(HANDLE hMainWnd, LPWSTR lpFilePath, PVOID pHeaderBuf,
+                                    DWORD nHeaderBufSize, ImageInfo* pImgInfo, PVOID pReserved) {
+    return InitGuarded(hMainWnd, lpFilePath, pHeaderBuf, nHeaderBufSize, pImgInfo, pReserved);
+}
+
 // ---------------------------------------------------------------------------
 //  IIO_Work
 // ---------------------------------------------------------------------------
@@ -750,6 +789,7 @@ static INT64 WorkImpl(DmgImage* img, INT64 nOfs, INT64 nSize, PVOID lpBuffer, PB
     const LONG call = InterlockedIncrement(&img->workCalls);
     const BYTE flagsIn = pFlags ? *pFlags : 0;
     img->NoteThread(GetCurrentThreadId());
+    if (g_faultAv == 2) RaiseTestFault();
 
     if (nOfs < 0 || nSize < 0 || !lpBuffer) return 0;
     if (flagsIn & IIO_WRITE) {
@@ -833,7 +873,7 @@ extern "C" INT64 __stdcall IIO_Work(PVOID lpImage, INT64 nOfs, INT64 nSize, PVOI
 //  IIO_Done
 // ---------------------------------------------------------------------------
 
-extern "C" DWORD __stdcall IIO_Done(PVOID lpImage, LPWSTR lpTextualDescr) {
+static DWORD DoneImpl(PVOID lpImage, LPWSTR lpTextualDescr) {
     const LONG seq = InterlockedIncrement(&g_doneSeq);
     DmgImage* img = static_cast<DmgImage*>(lpImage);
     if (!img || img->magic != kStateMagic) {
@@ -841,6 +881,7 @@ extern "C" DWORD __stdcall IIO_Done(PVOID lpImage, LPWSTR lpTextualDescr) {
         if (lpTextualDescr) HeapFree(GetProcessHeap(), 0, lpTextualDescr);
         return 1;
     }
+    if (g_faultAv == 3) RaiseTestFault();
     if (img->img.reader) {
         if (const dmg::UdifStats* st0 = img->img.reader->Stats(); st0 && st0->substitutedChunks > 0) {
             Notify("IIO_Done", seq, dmg::Format("SUMMARY %s: %lld chunk(s) / %lld sectors could not be decoded and were presented as zeros; the image file was not modified. Report: %s",
@@ -865,6 +906,24 @@ extern "C" DWORD __stdcall IIO_Done(PVOID lpImage, LPWSTR lpTextualDescr) {
     return 1;
 }
 
+static void LogDoneException(DWORD code) {
+    Log("IIO_Done", 0, dmg::Format("EXCEPTION 0x%08lX contained; image state leaked", code));
+}
+
+// A fault while closing leaks the state instead of crashing X-Ways at Close Case.
+static DWORD DoneGuarded(PVOID lpImage, LPWSTR lpTextualDescr) {
+    __try {
+        return DoneImpl(lpImage, lpTextualDescr);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LogDoneException(GetExceptionCode());
+        return 1;
+    }
+}
+
+extern "C" DWORD __stdcall IIO_Done(PVOID lpImage, LPWSTR lpTextualDescr) {
+    return DoneGuarded(lpImage, lpTextualDescr);
+}
+
 // ---------------------------------------------------------------------------
 //  DllMain
 // ---------------------------------------------------------------------------
@@ -879,6 +938,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
             dmg::DecoderGlobalInit();
             LoadFaultInjection();
             if (g_faultEnabled) Log("DllMain", 0, dmg::Format("FAULT INJECTION ACTIVE: sector %llu mode %s", (unsigned long long)g_faultSector, g_faultZero ? "zero" : "short"));
+            if (g_faultAv) Log("DllMain", 0, dmg::Format("FAULT INJECTION ACTIVE: access violation in %s", g_faultAv == 1 ? "IIO_Init" : g_faultAv == 2 ? "IIO_Work" : "IIO_Done"));
             g_xwfOutputMessage = reinterpret_cast<fptr_XWF_OutputMessage>(
                 GetProcAddress(GetModuleHandleW(nullptr), "XWF_OutputMessage"));
             Log("DllMain", 0, g_xwfOutputMessage ? "XWF_OutputMessage resolved from the host executable"
