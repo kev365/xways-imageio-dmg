@@ -235,7 +235,7 @@ uint64_t UdifSource::Read(uint64_t ofs, void* buf, uint64_t len, bool checkSpars
                 InterlockedIncrement64(&stats_.cacheHits);
             } else {
                 InterlockedIncrement64(&stats_.cacheMisses);
-                d = std::make_shared<std::vector<uint8_t>>(static_cast<size_t>(chunkBytes));   // zero-initialised
+                d = std::make_shared<std::vector<uint8_t>>(static_cast<size_t>(chunkBytes));   // zero-initialized
                 std::string e;
                 if (AlreadyFailed(idx) || !DecodeChunkInto(c, d->data(), e)) {
                     std::memset(d->data(), 0, d->size());      // decoder may have written partial output

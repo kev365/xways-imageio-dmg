@@ -63,7 +63,7 @@ static const char*  VERSION = "0.1.0-beta";
 // TRACE_WORK additionally logs *every* IIO_Work call (the first
 // kTraceFullCalls in full, then a summary every kTraceEvery). That is a
 // development aid: it makes the log large and adds a file write per read, so
-// it ships OFF. Turn it on locally when investigating read behaviour.
+// it ships OFF. Turn it on locally when investigating read behavior.
 static constexpr bool   VERBOSE          = true;
 static constexpr bool   TRACE_WORK       = false;
 static constexpr LONG   kTraceFullCalls  = 2000;

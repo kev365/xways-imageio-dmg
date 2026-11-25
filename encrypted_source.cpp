@@ -133,7 +133,7 @@ bool OpenAlg(AlgHandle& a, LPCWSTR alg, ULONG flags, const wchar_t* chain, std::
 }
 
 // DES ignores the low bit of every key byte, but some providers insist on odd
-// parity — normalise so the effective key is unchanged either way.
+// parity — normalize so the effective key is unchanged either way.
 void FixDesParity(uint8_t* k, size_t n) {
     for (size_t i = 0; i < n; ++i) {
         uint8_t b = k[i] & 0xFE;
@@ -319,7 +319,7 @@ bool EncryptedSource::PlaintextLooksValid(std::string& what) {
     if (n >= 1536 && (std::memcmp(head + 1024, "H+", 2) == 0 || std::memcmp(head + 1024, "HX", 2) == 0)) { what = "HFS+"; return true; }
     if (std::memcmp(head + 32, "NXSB", 4) == 0) { what = "APFS"; return true; }
     if (head[510] == 0x55 && head[511] == 0xAA) { what = "MBR"; return true; }
-    what = "no recognised signature";
+    what = "no recognized signature";
     return false;
 }
 

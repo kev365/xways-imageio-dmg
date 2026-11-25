@@ -15,7 +15,7 @@
 
 namespace dmg {
 
-// One-time process-level initialisation (CRC tables). Safe to call repeatedly.
+// One-time process-level initialization (CRC tables). Safe to call repeatedly.
 void DecoderGlobalInit();
 
 // Decodes `inLen` bytes of a chunk of `type` into exactly `outLen` bytes.

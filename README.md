@@ -153,7 +153,7 @@ was created with (hdiutil uses ~230 000, about 0.4 s).
 
 For an unsupported encrypted image (certificate-only, v1 `cdsaencr`) or a
 `.dmgpart` added on its own the plugin reports "give up" with a message, which
-X-Ways displays. What happens next is X-Ways' own behaviour (21.8): a
+X-Ways displays. What happens next is X-Ways' own behavior (21.8): a
 `.dmgpart` is then refused with its native "DMG Images not supported at
 present" error; an undecryptable encrypted image (whose koly trailer is hidden inside
 the ciphertext) gets the raw "Interpret Image File As Disk" dialog instead —
@@ -314,7 +314,7 @@ LZMA (~27 MiB/s) are the slow decoders.
   (multi-threaded reads under a hashing refinement, `IIO_CHECK_FOR_SPARSE`).
 
 Real-world images for testing are readily available: application DMGs from
-the Homebrew cask catalogue, Firefox (built with libdmg-hfsplus rather than
+the Homebrew cask catalog, Firefox (built with libdmg-hfsplus rather than
 `hdiutil`), Apple's legacy support downloads for pre-10.5 era images, and the
 macOS installer packages for multi-volume APFS containers.
 
