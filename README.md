@@ -141,9 +141,14 @@ order, silently first:
    refuses the image with a message.
 
 Passwords are never logged. All cryptography is Windows CNG (`bcrypt.dll`)
-for the image itself — PBKDF2-HMAC-SHA1 key derivation, 3DES-CBC key unwrap,
-AES-CBC blocks with HMAC-SHA1-derived IVs — and DPAPI (`crypt32.dll`) for the
-remembered-password file. Unlocking costs the PBKDF2 iteration count the image
+for the image itself — PBKDF2-HMAC-SHA1 key derivation, 3DES-192-CBC or
+AES-192-CBC key unwrap, AES-CBC blocks with HMAC-SHA1-derived IVs — and DPAPI
+(`crypt32.dll`) for the remembered-password file. Which key wrap an image uses
+depends on the macOS that wrote it: hdiutil used 3DES-192 through at least
+macOS 12, and macOS 26 and later write AES-192 (same 192-bit key size, so only
+the algorithm id tells them apart — verified against hdiutil output from
+26.6.2 and 27.2.1). Both are read; the wrap in use is named in the `opened`
+log line. Unlocking costs the PBKDF2 iteration count the image
 was created with (hdiutil uses ~230 000, about 0.4 s).
 
 For an unsupported encrypted image (certificate-only, v1 `cdsaencr`) or a

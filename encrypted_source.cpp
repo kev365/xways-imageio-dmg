@@ -22,7 +22,10 @@ std::string UuidString(const uint8_t u[16]) {
 
 std::string EncSummary(const EncHeader& h) {
     std::string s = Format("encrypted (encrcdsa v%u): AES-%u CBC, %u-byte blocks", h.version, h.keyBits, h.bytesPerBlock);
-    if (!h.passItems.empty()) s += Format(", PBKDF2-SHA1 %llu iterations", (unsigned long long)h.passItems[0].iterations);
+    if (!h.passItems.empty()) {
+        s += Format(", PBKDF2-SHA1 %llu iterations", (unsigned long long)h.passItems[0].iterations);
+        s += h.passItems[0].AesWrap() ? ", AES-192 key wrap" : ", 3DES-192 key wrap";
+    }
     if (h.otherItems) s += Format(", %d non-passphrase key entr%s", h.otherItems, h.otherItems == 1 ? "y" : "ies");
     return s;
 }
@@ -84,10 +87,19 @@ bool ParseEncHeader(IByteSource& src, EncHeader& h, std::string& err) {
         p.blobPadding   = ir.U32(0x5C);
         p.blobMode      = ir.U32(0x60);
         uint32_t blobLen = ir.U32(0x64);
-        if (blobLen == 0 || (blobLen % 8) || !ir.Has(0x68, blobLen)) { err = "malformed wrapped key blob"; return false; }
+        // The blob is CBC ciphertext, so its length is a multiple of the wrap
+        // cipher's block size — 8 for 3DES, 16 for AES.
+        if (blobLen == 0 || (blobLen % p.WrapBlock()) || !ir.Has(0x68, blobLen)) { err = "malformed wrapped key blob"; return false; }
         p.blob.assign(item.begin() + 0x68, item.begin() + 0x68 + blobLen);
         if (p.kdfAlgorithm != 0x67) { err = Format("KDF %08X not supported (expected PBKDF2)", p.kdfAlgorithm); return false; }
-        if (p.blobAlgorithm != 0x11 || p.blobKeyBits != 192 || p.blobIv.size() < 8) { err = "key blob is not 3DES-192/CBC"; return false; }
+        // Both known wraps are 192-bit CBC: 3DES-192 (hdiutil up to macOS 12)
+        // and AES-192 (macOS 26). The stored IV is 8 bytes either way.
+        if ((p.blobAlgorithm != kWrapAlg3Des && p.blobAlgorithm != kWrapAlgAes) ||
+            p.blobKeyBits != 192 || p.blobIv.size() < 8) {
+            err = Format("key blob wrap %08X/%u-bit not supported (expected 3DES-192 or AES-192, CBC)",
+                         p.blobAlgorithm, p.blobKeyBits);
+            return false;
+        }
         h.passItems.push_back(std::move(p));
     }
     if (h.passItems.empty()) {
@@ -145,30 +157,37 @@ bool UnlockWithPassword(const EncHeader& h, const std::string& password, EncKeys
                                            item.iterations, derived, sizeof(derived), 0);
         if (!NT_SUCCESS(s)) { err = Format("BCryptDeriveKeyPBKDF2 failed 0x%08X", (unsigned)s); return false; }
 
-        // 2. 3DES-CBC unwrap of the key blob
-        uint8_t desKey[24];
-        std::memcpy(desKey, derived, 24);
-        FixDesParity(desKey, 24);
-        AlgHandle des;
-        if (!OpenAlg(des, BCRYPT_3DES_ALGORITHM, 0, BCRYPT_CHAIN_MODE_CBC, err)) return false;
-        KeyHandle desKeyH;
-        s = BCryptGenerateSymmetricKey(des.h, &desKeyH.h, nullptr, 0, desKey, sizeof(desKey), 0);
-        if (!NT_SUCCESS(s)) { err = Format("3DES key import failed 0x%08X", (unsigned)s); return false; }
-        uint8_t iv[8];
+        // 2. CBC unwrap of the key blob — 3DES-192 or AES-192, both keyed on
+        //    the first 24 bytes of the same PBKDF2 output. The DES parity fix
+        //    must NOT be applied to the AES key: AES uses all 8 bits of every
+        //    byte, so normalizing the low bits would yield the wrong key.
+        const bool aesWrap = item.AesWrap();
+        const ULONG wrapBlock = static_cast<ULONG>(item.WrapBlock());
+        const char* wrapName = aesWrap ? "AES-192" : "3DES";
+        uint8_t wrapKey[24];
+        std::memcpy(wrapKey, derived, 24);
+        if (!aesWrap) FixDesParity(wrapKey, 24);
+        AlgHandle wrapAlg;
+        if (!OpenAlg(wrapAlg, aesWrap ? BCRYPT_AES_ALGORITHM : BCRYPT_3DES_ALGORITHM, 0, BCRYPT_CHAIN_MODE_CBC, err)) return false;
+        KeyHandle wrapKeyH;
+        s = BCryptGenerateSymmetricKey(wrapAlg.h, &wrapKeyH.h, nullptr, 0, wrapKey, sizeof(wrapKey), 0);
+        if (!NT_SUCCESS(s)) { err = Format("%s key import failed 0x%08X", wrapName, (unsigned)s); return false; }
+        // The item stores an 8-byte IV. AES-CBC needs 16, zero-padded.
+        uint8_t iv[16] = {};
         std::memcpy(iv, item.blobIv.data(), 8);
         std::vector<uint8_t> plain(item.blob.size());
         ULONG got = 0;
-        s = BCryptDecrypt(desKeyH.h, (PUCHAR)item.blob.data(), static_cast<ULONG>(item.blob.size()), nullptr, iv, 8,
+        s = BCryptDecrypt(wrapKeyH.h, (PUCHAR)item.blob.data(), static_cast<ULONG>(item.blob.size()), nullptr, iv, wrapBlock,
                           plain.data(), static_cast<ULONG>(plain.size()), &got, 0);
         SecureZeroMemory(derived, sizeof(derived));
-        SecureZeroMemory(desKey, sizeof(desKey));
-        if (!NT_SUCCESS(s)) { err = Format("3DES decrypt failed 0x%08X", (unsigned)s); return false; }
+        SecureZeroMemory(wrapKey, sizeof(wrapKey));
+        if (!NT_SUCCESS(s)) { err = Format("%s decrypt failed 0x%08X", wrapName, (unsigned)s); return false; }
         plain.resize(got);
 
         // 3. PKCS7 padding check — the password test. Then the optional "CKIE\0" marker.
         if (plain.empty()) { lastErr = "wrong password"; continue; }
         uint8_t pad = plain.back();
-        if (pad < 1 || pad > 8 || pad > plain.size()) { lastErr = "wrong password"; continue; }
+        if (pad < 1 || pad > wrapBlock || pad > plain.size()) { lastErr = "wrong password"; continue; }
         bool padOk = true;
         for (size_t i = plain.size() - pad; i < plain.size(); ++i) padOk = padOk && plain[i] == pad;
         if (!padOk) { lastErr = "wrong password"; continue; }

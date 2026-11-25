@@ -3,13 +3,16 @@
 // An encrypted DMG is a plain header followed by AES-CBC ciphertext in
 // bytesPerBlock (observed: 512) blocks, each with its own IV =
 // HMAC-SHA1(hmacKey, big-endian block number)[:blockIvLen]. The AES key and
-// the HMAC key are wrapped in a 3DES-CBC blob protected by a PBKDF2-SHA1
-// derived key. The plaintext is either a UDIF image (koly trailer at the end,
-// compressed variants) or a bare disk/volume (read-write variants).
+// the HMAC key are wrapped in a CBC blob protected by a PBKDF2-SHA1 derived
+// key — 3DES-192 up to macOS 12, AES-192 on macOS 26 (see kWrapAlg* below).
+// The plaintext is either a UDIF image (koly trailer at the end, compressed
+// variants) or a bare disk/volume (read-write variants).
 //
 // Everything cryptographic goes through Windows CNG (bcrypt.dll) — no vendored
 // crypto. Layout reference: nlitsme/encrypteddmg (MIT) and the real hdiutil
-// samples (macOS 12.7.6, 2026-09-03).
+// samples (macOS 12.7.6, 2026-09-03). The AES-192 wrap was reported by Alexis
+// Brignoni from macOS 26.6.2 images (GitHub issue #1, 2026-09-27) and
+// cross-checked against abrignoni/ewfprobe.
 #pragma once
 
 #include <windows.h>
@@ -25,16 +28,26 @@ namespace dmg {
 
 constexpr size_t kEncHeaderMin = 0x4C;
 
+// Key-blob wrap algorithms seen in a passphrase key item. hdiutil wrapped the
+// blob with 3DES-192 for years; macOS 26 writes AES-192 instead (both with
+// 192-bit keys, so the key-size field alone does not tell them apart).
+constexpr uint32_t kWrapAlg3Des = 0x11u;
+constexpr uint32_t kWrapAlgAes  = 0x80000001u;
+
 struct EncPassItem {
     uint32_t kdfAlgorithm = 0;      // 0x67 = PBKDF2
     uint64_t iterations = 0;
     std::vector<uint8_t> salt;
-    std::vector<uint8_t> blobIv;    // 8 bytes for 3DES
+    std::vector<uint8_t> blobIv;    // 8 bytes as stored (zero-padded to 16 for AES)
     uint32_t blobKeyBits = 0;       // 192
-    uint32_t blobAlgorithm = 0;     // 0x11 = 3DES
+    uint32_t blobAlgorithm = 0;     // 0x11 = 3DES, 0x80000001 = AES
     uint32_t blobPadding = 0;       // 7 = PKCS7
     uint32_t blobMode = 0;          // 6 = CBC
     std::vector<uint8_t> blob;      // wrapped {aesKey | hmacKey | "CKIE\0"} + PKCS7
+
+    bool AesWrap() const { return blobAlgorithm == kWrapAlgAes; }
+    // CBC block size of the wrap cipher — also the PKCS#7 padding modulus.
+    size_t WrapBlock() const { return AesWrap() ? 16u : 8u; }
 };
 
 struct EncHeader {
@@ -66,8 +79,9 @@ bool IsEncryptedV1Trailer(const uint8_t* tail8);          // "cdsaencr"
 // Parses the header from the start of `src`. Fails on unsupported parameters.
 bool ParseEncHeader(IByteSource& src, EncHeader& out, std::string& err);
 
-// PBKDF2 → 3DES unwrap → key split. Returns false with err = "wrong password"
-// when the blob does not decrypt to a well-formed key blob.
+// PBKDF2 → key-blob unwrap (3DES-192 or AES-192) → key split. Returns false
+// with err = "wrong password" when the blob does not decrypt to a well-formed
+// key blob.
 bool UnlockWithPassword(const EncHeader& h, const std::string& passwordUtf8, EncKeys& out, std::string& err);
 
 std::string EncSummary(const EncHeader& h);   // e.g. "AES-256, 512-byte blocks, PBKDF2 238095 iterations"
