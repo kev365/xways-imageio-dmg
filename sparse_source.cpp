@@ -128,17 +128,33 @@ static bool EndsWithNoCase(const std::wstring& s, const wchar_t* suffix) {
     return _wcsnicmp(s.c_str() + s.size() - n, suffix, n) == 0;
 }
 
-static bool FileExists(const std::wstring& p) {
+static bool IsPlainFile(const std::wstring& p) {
     DWORD a = GetFileAttributesW(p.c_str());
-    return a != INVALID_FILE_ATTRIBUTES;
+    return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static bool IsDirectory(const std::wstring& p) {
+    DWORD a = GetFileAttributesW(p.c_str());
+    return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
 bool ResolveSparseBundle(const std::wstring& path, std::wstring& bundleDir) {
     std::wstring p = path;
     while (!p.empty() && (p.back() == L'\\' || p.back() == L'/')) p.pop_back();
-    // The path itself, its parent, or its grandparent (bands\<hex>) may be the bundle.
+    // The path itself, its parent, or its grandparent (bands\<hex>) may be the
+    // bundle.
+    //
+    // The folder name is deliberately NOT required to end in ".sparsebundle".
+    // Time Machine writes ".backupbundle" on network destinations, and a copy
+    // or archive round-trip can drop the suffix altogether; such a folder is a
+    // sparse bundle in every respect that matters (GitHub issue #3). What
+    // identifies one is its structure — an Info.plist *file* beside a bands
+    // *directory* — so that is what we test, and we test the types rather than
+    // mere existence. A folder that merely has those two names still has to
+    // yield band-size and size from the plist in Open() a moment later, so it
+    // is declined there rather than mis-read as an image.
     for (int up = 0; up < 3 && !p.empty(); ++up) {
-        if (EndsWithNoCase(p, L".sparsebundle") && FileExists(p + L"\\Info.plist") && FileExists(p + L"\\bands")) {
+        if (IsPlainFile(p + L"\\Info.plist") && IsDirectory(p + L"\\bands")) {
             bundleDir = p;
             return true;
         }

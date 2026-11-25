@@ -10,7 +10,7 @@ volumes inside exactly as it would for a raw image.
 It is the same mechanism the Evimetry AFF4 reader (`ImageIOAFF4.dll`) uses —
 an `Image*.dll` in the `x64\` folder, not an X-Tension.
 
-Status: **0.1.1-beta**. Requires X-Ways Forensics
+Status: **0.1.2-beta**. Requires X-Ways Forensics
 19.5 or later (the release that introduced the Image I/O API); tested
 against X-Ways Forensics 21.8 and 21.9 SR-2 on Windows 11 x64.
 
@@ -46,9 +46,11 @@ against X-Ways Forensics 21.8 and 21.9 SR-2 on Windows 11 x64.
   first.
 - **`.sparsebundle`** is a *directory*, and X-Ways' Add Image wants a file, so
   add the bundle's **`Info.plist`** (any file inside the bundle works, but
-  `Info.plist` is the stable one). The plugin recognizes the enclosing
-  `.sparsebundle` folder and reads `bands\<hex>`; missing or short band files
-  read as zeros. X-Ways names the evidence object after the file you picked
+  `Info.plist` is the stable one). The plugin recognizes the enclosing bundle
+  folder by its structure — an `Info.plist` file beside a `bands` directory —
+  and reads `bands\<hex>`; missing or short band files read as zeros. The
+  folder name does **not** have to end in `.sparsebundle`, so Time Machine's
+  `.backupbundle` and bundles whose suffix was lost in a copy are read too. X-Ways names the evidence object after the file you picked
   (`Info`), so rename the evidence object in the case if that matters. In an
   **encrypted bundle** the `encrcdsa` header sits in the bundle's `token` file,
   every band file is encrypted on its own (the IV counter restarts per band),

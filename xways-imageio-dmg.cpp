@@ -54,7 +54,7 @@
 // ---------------------------------------------------------------------------
 
 static const char*  NAME    = "ImageIO_DMG";
-static const char*  VERSION = "0.1.1-beta";
+static const char*  VERSION = "0.1.2-beta";
 
 // VERBOSE keeps the per-image decisions (claim / decline / give-up, partition
 // list, close-out statistics) in ImageIO_DMG-log.tsv; it is cheap and stays on
