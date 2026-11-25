@@ -10,9 +10,9 @@ volumes inside exactly as it would for a raw image.
 It is the same mechanism the Evimetry AFF4 reader (`ImageIOAFF4.dll`) uses —
 an `Image*.dll` in the `x64\` folder, not an X-Tension.
 
-Status: **0.1.0-beta**, the first public release. Requires X-Ways Forensics
+Status: **0.1.1-beta**. Requires X-Ways Forensics
 19.5 or later (the release that introduced the Image I/O API); tested
-against X-Ways Forensics 21.8 on Windows 11 x64.
+against X-Ways Forensics 21.8 and 21.9 SR-2 on Windows 11 x64.
 
 ## What it reads
 
